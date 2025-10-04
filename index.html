@@ -1,57 +1,107 @@
 <!DOCTYPE html>
 <html>
 <body>
-    <textarea id="content" rows="5" cols="50" placeholder="输入要保存的内容..."></textarea><br>
-    <button onclick="saveText()">发送</button>
-    <div id="status"></div>
+  <textarea id="content" placeholder="输入要保存的内容..." style="width:300px;height:150px;"></textarea>
+  <br>
+  <button onclick="loginAndSave()">登录GitHub并保存</button>
+  <p id="status"></p>
 
-    <script>
-        async function saveText() {
-            const content = document.getElementById('content').value;
-            const statusDiv = document.getElementById('status');
-            
-            if (!content.trim()) {
-                statusDiv.textContent = "请输入内容后再发送";
-                statusDiv.style.color = "red";
-                return;
-            }
+  <script>
+    // 替换为你的仓库信息
+    const REPO = "wumingdeczy/tst";
+    const CLIENT_ID = "Ov23liEwTTJBGyXcQKXe"; // 下一步会教你获取
 
-            try {
-                statusDiv.textContent = "正在保存...";
-                statusDiv.style.color = "blue";
+    // 登录并保存内容
+    function loginAndSave() {
+      const content = document.getElementById("content").value;
+      if (!content.trim()) {
+        showStatus("请输入内容", "red");
+        return;
+      }
+      
+      // 存储内容到localStorage，登录后会用到
+      localStorage.setItem("savedContent", content);
+      
+      // 跳转到GitHub授权页面
+      const redirectUri = window.location.href; // 授权后返回当前页面
+      const scope = "public_repo"; // 仅请求公共仓库权限
+      window.location.href = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+    }
 
-                // 替换为你的GitHub用户名和仓库名
-                const repoOwner = "wumingdeczy";
-                const repoName = "tst";
+    // 页面加载时检查是否有授权回调
+    window.onload = function() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      
+      if (code) {
+        // 有授权码，尝试获取访问令牌并保存内容
+        showStatus("正在完成授权...", "blue");
+        getAccessToken(code);
+      }
+    };
 
-                const response = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/issues`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        title: 'Auto-saved content',
-                        body: content,
-                        labels: ['automation']
-                    })
-                });
-
-                if (response.ok) {
-                    statusDiv.textContent = "保存成功！";
-                    statusDiv.style.color = "green";
-                    document.getElementById('content').value = "";
-                } else {
-                    const error = await response.json();
-                    statusDiv.textContent = `保存失败: ${error.message || '未知错误'}`;
-                    statusDiv.style.color = "red";
-                }
-            } catch (error) {
-                statusDiv.textContent = `发生错误: ${error.message}`;
-                statusDiv.style.color = "red";
-            }
+    // 获取访问令牌
+    async function getAccessToken(code) {
+      // 注意：这里使用了一个公开的代理服务中转请求（避免在前端暴露client_secret）
+      // 生产环境建议自己搭建后端服务
+      const redirectUri = window.location.href.split('?')[0];
+      try {
+        const response = await fetch("https://cors-anywhere.herokuapp.com/https://github.com/login/oauth/access_token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({
+            client_id: CLIENT_ID,
+            client_secret: "你的client_secret", // 下一步获取，不要分享给他人
+            code: code,
+            redirect_uri: redirectUri
+          })
+        });
+        
+        const data = await response.json();
+        if (data.access_token) {
+          // 用令牌创建Issue
+          saveWithToken(data.access_token);
+        } else {
+          throw new Error("授权失败: " + data.error_description);
         }
-    </script>
+      } catch (err) {
+        showStatus("授权失败: " + err.message, "red");
+      }
+    }
+
+    // 使用令牌保存内容
+    async function saveWithToken(token) {
+      const content = localStorage.getItem("savedContent");
+      try {
+        const response = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": `token ${token}`
+          },
+          body: JSON.stringify({
+            title: "自动保存: " + new Date().toLocaleString(),
+            body: content,
+            labels: ["automation"]
+          })
+        });
+
+        if (!response.ok) throw new Error(await response.text());
+        
+        showStatus("保存成功！", "green");
+        document.getElementById("content").value = "";
+        localStorage.removeItem("savedContent");
+      } catch (err) {
+        showStatus("保存失败: " + err.message, "red");
+      }
+    }
+
+    function showStatus(text, color) {
+      const el = document.getElementById("status");
+      el.style.color = color;
+      el.textContent = text;
+    }
+  </script>
 </body>
 </html>
     

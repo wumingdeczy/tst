@@ -1,39 +1,29 @@
 name: Process Content Issues
-
 on:
   issues:
-    types: [opened]
-
+    types: [opened] # 当有新Issue创建时触发
 jobs:
   process-content:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.labels.*.name, 'automation')
+    if: contains(github.event.issue.labels.*.name, 'automation') # 只处理带automation标签的Issue
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4 # 检出仓库代码
       
-      - name: 显示调试信息
+      - name: 确保data.txt存在并写入内容
         run: |
-          echo "Issue 编号: ${{ github.event.issue.number }}"
-          echo "Issue 内容: ${{ github.event.issue.body }}"
+          touch data.txt # 防止文件不存在导致报错
+          echo "=== 保存时间：$(date -u) ===" >> data.txt # 加时间戳
+          echo "${{ github.event.issue.body }}" >> data.txt # 写入用户输入的内容
+          echo -e "\n" >> data.txt # 空行分隔不同内容
       
-      - name: 保存内容到文件
-        run: |
-          # 确保文件存在
-          touch data.txt
-          # 添加时间戳和分隔符
-          echo "=== $(date -u) ===" >> data.txt
-          echo "${{ github.event.issue.body }}" >> data.txt
-          echo "" >> data.txt  # 空行分隔
-      
-      - name: 提交更改
+      - name: 提交更改到仓库
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'Add content from issue #${{ github.event.issue.number }}'
-          file_pattern: 'data.txt'
+          commit_message: "Add content from issue #${{ github.event.issue.number }}"
+          file_pattern: "data.txt" # 只提交data.txt的修改
           
-      - name: 关闭Issue
+      - name: 自动关闭Issue（避免垃圾Issue堆积）
         uses: peter-evans/close-issue@v3
         with:
           issue-number: ${{ github.event.issue.number }}
-          comment: '内容已成功保存到data.txt'
-    
+          comment: "内容已成功保存到data.txt ✅"

@@ -2,7 +2,7 @@ name: Process Content Issues
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [opened]
 
 jobs:
   process-content:
@@ -11,19 +11,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Save content to file
+      - name: 显示调试信息
         run: |
+          echo "Issue 编号: ${{ github.event.issue.number }}"
+          echo "Issue 内容: ${{ github.event.issue.body }}"
+      
+      - name: 保存内容到文件
+        run: |
+          # 确保文件存在
+          touch data.txt
+          # 添加时间戳和分隔符
+          echo "=== $(date -u) ===" >> data.txt
           echo "${{ github.event.issue.body }}" >> data.txt
-          
-      - name: Commit and push changes
+          echo "" >> data.txt  # 空行分隔
+      
+      - name: 提交更改
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'Add content from issue #${{ github.event.issue.number }}'
           file_pattern: 'data.txt'
           
-      - name: Close issue
+      - name: 关闭Issue
         uses: peter-evans/close-issue@v3
         with:
           issue-number: ${{ github.event.issue.number }}
-          comment: 'Content saved successfully'
+          comment: '内容已成功保存到data.txt'
     
